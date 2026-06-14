@@ -1,0 +1,9 @@
+__pycache__/
+*.py[cod]
+.DS_Store
+
+cms_data/*.db
+cms_data/*.sqlite
+cms_data/*.sqlite3
+
+assets/uploads/

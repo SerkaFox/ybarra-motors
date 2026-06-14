@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+
+  <url>
+    <loc>https://ybarra.listoya.es/</loc>
+    <priority>1.0</priority>
+  </url>
+
+  <url>
+    <loc>https://ybarra.listoya.es/servicios/neumaticos/</loc>
+    <priority>0.8</priority>
+  </url>
+
+  <url>
+    <loc>https://ybarra.listoya.es/servicios/mantenimiento-general/</loc>
+    <priority>0.8</priority>
+  </url>
+
+  <url>
+    <loc>https://ybarra.listoya.es/servicios/suspension-y-direccion/</loc>
+    <priority>0.8</priority>
+  </url>
+
+  <url>
+    <loc>https://ybarra.listoya.es/servicios/baterias-para-coches/</loc>
+    <priority>0.8</priority>
+  </url>
+
+  <url>
+    <loc>https://ybarra.listoya.es/servicios/frenos-y-pastillas/</loc>
+    <priority>0.8</priority>
+  </url>
+
+  <url>
+    <loc>https://ybarra.listoya.es/servicios/pre-itv/</loc>
+    <priority>0.8</priority>
+  </url>
+
+</urlset>
