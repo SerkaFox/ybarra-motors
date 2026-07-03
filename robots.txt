@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://ybarra.listoya.es/sitemap.xml
+Sitemap: https://ybarra-motor.es/sitemap.xml

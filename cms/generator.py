@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import html
 import json
+import subprocess
+from functools import lru_cache
 from pathlib import Path
 from urllib.parse import quote
 
@@ -9,6 +11,8 @@ from .defaults import SERVICE_PAGES
 from .storage import get_page, get_site_settings
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+SITE_URL = "https://ybarra-motor.es"
 
 
 def e(value: str) -> str:
@@ -31,10 +35,58 @@ def rich_text(value: str) -> str:
     return escaped
 
 
+@lru_cache(maxsize=256)
+def image_dimensions(path: str) -> str:
+    """Return a ' width="W" height="H"' HTML attribute string for a local image path, or "" if unknown."""
+    if path.startswith("http://") or path.startswith("https://"):
+        return ""
+    fs_path = BASE_DIR / path.lstrip("/")
+    try:
+        result = subprocess.run(
+            ["identify", "-format", "%w %h", str(fs_path)],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=True,
+        )
+        width, height = result.stdout.strip().split()
+        return f' width="{int(width)}" height="{int(height)}"'
+    except Exception:
+        return ""
+
+
 def og_image_url(path: str) -> str:
     if path.startswith("http://") or path.startswith("https://"):
         return path
-    return f"https://ybarra.listoya.es{quote(path, safe='/:')}"
+    return f"{SITE_URL}{quote(path, safe='/:')}"
+
+
+def opening_hours_jsonld(settings: dict) -> str:
+    day_codes = {
+        "monday": "Monday",
+        "tuesday": "Tuesday",
+        "wednesday": "Wednesday",
+        "thursday": "Thursday",
+        "friday": "Friday",
+        "saturday": "Saturday",
+        "sunday": "Sunday",
+    }
+    specs = []
+    for key, code in day_codes.items():
+        day = settings["schedule"][key]
+        if day["closed"] in (True, "True", "true"):
+            continue
+        if day["morning_open"] and day["morning_close"]:
+            specs.append(
+                f'    {{ "@type": "OpeningHoursSpecification", "dayOfWeek": "{code}", '
+                f'"opens": "{day["morning_open"]}", "closes": "{day["morning_close"]}" }}'
+            )
+        if day["afternoon_open"] and day["afternoon_close"]:
+            specs.append(
+                f'    {{ "@type": "OpeningHoursSpecification", "dayOfWeek": "{code}", '
+                f'"opens": "{day["afternoon_open"]}", "closes": "{day["afternoon_close"]}" }}'
+            )
+    return ",\n".join(specs)
 
 
 def build_schedule_rows(settings: dict) -> str:
@@ -108,7 +160,7 @@ def render_header_include(settings: dict) -> str:
   <div class="wrap topbar-inner">
     <a class="brand" href="/" aria-label="Ybarra Motor Inicio">
       <div class="brand-logo">
-        <img src="/assets/img/logo-ybarra.jpg" alt="Logo Ybarra Motor">
+        <img src="/assets/img/logo-ybarra.jpg" alt="Logo Ybarra Motor"{image_dimensions("/assets/img/logo-ybarra.jpg")}>
       </div>
     </a>
 
@@ -184,10 +236,15 @@ def render_home(page: dict, settings: dict | None = None) -> str:
     </div>"""
         for item in c["hero"]["quick_items"]
     )
+    offer_catalog_items = ",\n".join(
+        f'''      {{ "@type": "Offer", "itemOffered": {{ "@type": "Service", "name": "{e(meta["label"])}", "url": "{SITE_URL}{meta["url"]}" }} }}'''
+        for meta in SERVICE_PAGES.values()
+    )
+    opening_hours = opening_hours_jsonld(settings)
     service_cards = "\n".join(
         f"""  <a class="service-card reveal" href="{e(card['href'])}">
     <div class="service-card-media">
-      <img src="{e(card['image']['path'])}" alt="{e(card['image']['alt'])}">
+      <img src="{e(card['image']['path'])}" alt="{e(card['image']['alt'])}" loading="lazy"{image_dimensions(card['image']['path'])}>
       <div class="service-card-overlay"></div>
     </div>
     <div class="service-card-body">
@@ -273,24 +330,50 @@ def render_home(page: dict, settings: dict | None = None) -> str:
   {{
     "@context": "https://schema.org",
     "@type": "AutoRepair",
+    "@id": "{SITE_URL}/#taller",
     "name": "{e(settings["contact"]["company_name"])}",
-    "image": "https://ybarra.listoya.es/assets/img/logo-ybarra.jpg",
-    "url": "https://ybarra.listoya.es/",
+    "image": "{SITE_URL}/assets/img/logo-ybarra.jpg",
+    "url": "{SITE_URL}/",
     "telephone": "{e(phone_href)}",
     "email": "{e(email)}",
+    "priceRange": "€€",
     "address": {{
       "@type": "PostalAddress",
       "streetAddress": "{e(settings["contact"]["street_address"])}",
       "addressLocality": "{e(settings["contact"]["locality"])}",
+      "addressRegion": "Bizkaia",
       "postalCode": "{e(settings["contact"]["postal_code"])}",
       "addressCountry": "{e(settings["contact"]["country"])}"
     }},
-    "description": "Taller mecánico multimarca en Bilbao con servicios de neumáticos, mantenimiento general, suspensión y dirección, baterías, frenos y Pre ITV.",
-    "areaServed": "Bilbao",
-    "priceRange": "€€",
+    "geo": {{
+      "@type": "GeoCoordinates",
+      "latitude": 43.26944555007976,
+      "longitude": -2.945343068251051
+    }},
+    "areaServed": [
+      {{ "@type": "City", "name": "Bilbao" }},
+      {{ "@type": "Place", "name": "Deusto" }}
+    ],
+    "description": "Taller mecánico multimarca en Bilbao (Deusto) con servicios de neumáticos, mantenimiento general, suspensión y dirección, baterías, frenos y Pre ITV.",
+    "openingHoursSpecification": [
+{opening_hours}
+    ],
     "sameAs": [
-      "https://www.facebook.com/Ybarra-Motor-Taller-Mec%C3%A1nico-100054352218088/"
-    ]
+      "https://www.facebook.com/Ybarra-Motor-Taller-Mec%C3%A1nico-100054352218088/",
+      "{e(settings["contact"]["map_search_url"])}"
+    ],
+    "aggregateRating": {{
+      "@type": "AggregateRating",
+      "ratingValue": "4.8",
+      "reviewCount": "100"
+    }},
+    "hasOfferCatalog": {{
+      "@type": "OfferCatalog",
+      "name": "Servicios del taller",
+      "itemListElement": [
+{offer_catalog_items}
+      ]
+    }}
   }}
   </script>
 </head>
@@ -305,12 +388,12 @@ def render_home(page: dict, settings: dict | None = None) -> str:
     <section class="hero" id="inicio">
       <div class="wrap hero-grid">
         <div class="hero-main reveal">
-          <div class="eyebrow">Bilbao · atención cercana · rapidez real</div>
+          <div class="eyebrow">Bilbao (Deusto) · atención cercana · rapidez real</div>
           <h1>
             <span class="hero-title-line">Ybarra Motor</span>
             <span class="hero-title-line hero-title-line--accent">Tu <span class="hero-scramble" data-text-from="amigo" data-text-to="taller">amigo</span> mecánico en Bilbao</span>
           </h1>
-          <p class="lead">Revisión clara, trabajo fino y soluciones pensadas para el uso diario del coche. En <strong>Ybarra Motor</strong> cuidamos tu vehículo con trato cercano, montaje correcto y tiempos razonables.</p>
+          <p class="lead">Revisión clara, trabajo fino y soluciones pensadas para el uso diario del coche. En <strong>Ybarra Motor</strong>, tu taller mecánico multimarca en Bilbao (Deusto), cuidamos tu vehículo con trato cercano, montaje correcto y tiempos razonables.</p>
 
           <div class="hero-actions">
             <a class="btn btn-primary" href="tel:{e(phone_href)}">Llamar: {e(phone_display)}</a>
@@ -330,6 +413,7 @@ def render_home(page: dict, settings: dict | None = None) -> str:
       class="hero-media-fallback"
       src="{e(c['hero']['image']['path'])}"
       alt="{e(c['hero']['image']['alt'])}"
+      fetchpriority="high"{image_dimensions(c['hero']['image']['path'])}
     >
     <div class="hero-media-overlay"></div>
 
@@ -356,6 +440,7 @@ def render_home(page: dict, settings: dict | None = None) -> str:
 <div class="services-grid">
 {service_cards}
 </div>
+        <p style="margin-top:18px;"><a href="/servicios/">Ver todos los servicios del taller →</a></p>
       </div>
     </section>
 
@@ -374,7 +459,7 @@ def render_home(page: dict, settings: dict | None = None) -> str:
   </div>
 
   <div class="about-photo">
-    <img src="{e(c['advantages']['image']['path'])}" alt="{e(c['advantages']['image']['alt'])}">
+    <img src="{e(c['advantages']['image']['path'])}" alt="{e(c['advantages']['image']['alt'])}" loading="lazy"{image_dimensions(c['advantages']['image']['path'])}>
   </div>
 </article>
 
@@ -527,6 +612,8 @@ def render_service(page: dict, settings: dict | None = None) -> str:
     phone_display = settings["contact"]["phone_display"]
     email = settings["contact"]["email"]
     address = settings["contact"]["address_line"]
+    service_meta = SERVICE_PAGES[page["slug"]]
+    service_url = f"{SITE_URL}{service_meta['url']}"
     points = "\n".join(
         f"""            <div class="mini-point">
               <strong>{e(item['title'])}</strong>
@@ -536,11 +623,11 @@ def render_service(page: dict, settings: dict | None = None) -> str:
     )
     badges = "\n".join(f'            <span class="badge">{e(item)}</span>' for item in c["hero"]["badges"])
     gallery_images = "\n".join(
-        f'        <img src="{e(item["path"])}" alt="{e(item["alt"])}">'
+        f'        <img src="{e(item["path"])}" alt="{e(item["alt"])}" loading="lazy"{image_dimensions(item["path"])}>'
         for item in c["gallery"]["images"]
     )
     gallery_duplicates = "\n".join(
-        f'        <img src="{e(item["path"])}" alt="">'
+        f'        <img src="{e(item["path"])}" alt="" loading="lazy" aria-hidden="true"{image_dimensions(item["path"])}>'
         for item in c["gallery"]["images"]
     )
     features = "\n".join(
@@ -590,6 +677,33 @@ def render_service(page: dict, settings: dict | None = None) -> str:
   <meta property="og:description" content="{e(c['seo']['og_description'])}">
   <meta property="og:url" content="{e(c['seo']['canonical_url'])}">
   <meta property="og:image" content="{e(og_image_url(c['hero']['image']['path']))}">
+
+  <script type="application/ld+json">
+  {{
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "serviceType": "{e(service_meta['label'])}",
+    "name": "{e(c['seo']['og_title'])}",
+    "url": "{service_url}",
+    "description": "{e(c['seo']['description'])}",
+    "areaServed": [
+      {{ "@type": "City", "name": "Bilbao" }},
+      {{ "@type": "Place", "name": "Deusto" }}
+    ],
+    "provider": {{ "@id": "{SITE_URL}/#taller" }}
+  }}
+  </script>
+  <script type="application/ld+json">
+  {{
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      {{ "@type": "ListItem", "position": 1, "name": "Inicio", "item": "{SITE_URL}/" }},
+      {{ "@type": "ListItem", "position": 2, "name": "Servicios", "item": "{SITE_URL}/servicios/" }},
+      {{ "@type": "ListItem", "position": 3, "name": "{e(service_meta['label'])}", "item": "{service_url}" }}
+    ]
+  }}
+  </script>
 </head>
 <body>
   <!-- Google Tag Manager (noscript) -->
@@ -620,7 +734,7 @@ def render_service(page: dict, settings: dict | None = None) -> str:
 
         <aside class="hero-side reveal">
           <div class="service-hero-photo-card">
-            <img src="{e(c['hero']['image']['path'])}" alt="{e(c['hero']['image']['alt'])}">
+            <img src="{e(c['hero']['image']['path'])}" alt="{e(c['hero']['image']['alt'])}" fetchpriority="high"{image_dimensions(c['hero']['image']['path'])}>
             <div class="service-hero-photo-overlay"></div>
             <div class="service-hero-badge">{e(c['hero']['badge'])}</div>
           </div>
