@@ -71,6 +71,14 @@ def initialize_database() -> None:
                 username TEXT NOT NULL,
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP
             );
+
+            CREATE TABLE IF NOT EXISTS mail_password_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                email TEXT NOT NULL,
+                password TEXT NOT NULL,
+                label TEXT NOT NULL,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            );
             """
         )
 
@@ -196,6 +204,23 @@ def authenticate(username: str, password: str) -> bool:
     if not row:
         return False
     return verify_password(password, row["password_hash"])
+
+
+def add_mail_password_history(email: str, password: str, label: str) -> None:
+    with get_connection() as conn:
+        conn.execute(
+            "INSERT INTO mail_password_history (email, password, label) VALUES (?, ?, ?)",
+            (email, password, label),
+        )
+
+
+def get_mail_password_history(limit: int = 20) -> list[sqlite3.Row]:
+    with get_connection() as conn:
+        return conn.execute(
+            "SELECT email, password, label, created_at FROM mail_password_history "
+            "ORDER BY id DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
 
 
 def update_password(username: str, new_password: str) -> None:

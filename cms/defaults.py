@@ -42,7 +42,7 @@ SITE_SETTINGS_DEFAULT = {
         "phone_display": "644 047 147",
         "phone_href": "+34644047147",
         "email": "info@ybarra-motor.es",
-        "whatsapp_number": "34678245670",
+        "whatsapp_number": "34644047147",
         "address_line": "Calle Rafaela Ybarra, 2, 48014 Bilbao",
         "street_address": "Calle Rafaela Ybarra, 2",
         "locality": "Bilbao",

@@ -7,3 +7,6 @@ cms_data/*.sqlite
 cms_data/*.sqlite3
 
 assets/uploads/
+
+# Local reference photos (not part of the site)
+WhatsApp Image*

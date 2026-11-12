@@ -15,6 +15,14 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SITE_URL = "https://ybarra-motor.es"
 
 
+def asset_version(relative_path: str) -> str:
+    asset_path = BASE_DIR / relative_path.lstrip("/")
+    try:
+        return str(int(asset_path.stat().st_mtime))
+    except OSError:
+        return "1"
+
+
 def e(value: str) -> str:
     return html.escape(value, quote=True)
 
@@ -89,11 +97,16 @@ def opening_hours_jsonld(settings: dict) -> str:
     return ",\n".join(specs)
 
 
+def is_day_closed(day: dict) -> bool:
+    closed = day.get("closed")
+    return closed is True or str(closed).strip().lower() == "true"
+
+
 def build_schedule_rows(settings: dict) -> str:
     rows = []
     for key in ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]:
         day = settings["schedule"][key]
-        if day["closed"]:
+        if is_day_closed(day):
             value = '<span class="contact-schedule-closed">Cerrado</span>'
         elif day["afternoon_open"] and day["afternoon_close"]:
             value = f"{e(day['morning_open'])}–{e(day['morning_close'])} / {e(day['afternoon_open'])}–{e(day['afternoon_close'])}"
@@ -109,11 +122,17 @@ def build_schedule_rows(settings: dict) -> str:
 
 
 def format_schedule_value(day: dict) -> str:
-    if day["closed"]:
+    if is_day_closed(day):
         return "Cerrado"
     if day["afternoon_open"] and day["afternoon_close"]:
         return f"{day['morning_open']}-{day['morning_close']} / {day['afternoon_open']}-{day['afternoon_close']}h"
     return f"{day['morning_open']}-{day['morning_close']}h"
+
+
+def format_schedule_line(day_range: str, value: str) -> str:
+    if value == "Cerrado":
+        return f"Cerrado: {day_range}"
+    return f"{day_range}: {value}"
 
 
 def build_schedule_summary(settings: dict) -> str:
@@ -138,13 +157,13 @@ def build_schedule_summary(settings: dict) -> str:
             current_end = label
             continue
         day_range = current_start if current_start == current_end else f"{current_start} - {current_end}"
-        lines.append(f"{day_range}: {current_value}")
+        lines.append(format_schedule_line(day_range, current_value))
         current_start = label
         current_end = label
         current_value = value
 
     day_range = current_start if current_start == current_end else f"{current_start} - {current_end}"
-    lines.append(f"{day_range}: {current_value}")
+    lines.append(format_schedule_line(day_range, current_value))
     return "<br>\n".join(e(line) for line in lines)
 
 
@@ -201,10 +220,14 @@ def render_footer_include(settings: dict) -> str:
     <span>Bilbao · Taller multimarca · Neumáticos · Mantenimiento · Frenos · Pre ITV</span>
     <span><a href="https://wa.me/{e(whatsapp)}" target="_blank" rel="noopener">WhatsApp</a></span>
     <span><a href="{e(directions)}" target="_blank" rel="noopener">Cómo llegar</a></span>
+    <span><a href="/aviso-legal/">Aviso legal</a> · <a href="/politica-de-privacidad/">Privacidad</a> · <a href="/politica-de-cookies/">Cookies</a></span>
   </div>
   <a class="whatsapp-float" href="https://wa.me/{e(whatsapp)}" target="_blank" rel="noopener" aria-label="Escribir por WhatsApp">
     WhatsApp
   </a>
+  <button id="scroll-top" class="scroll-top" type="button" hidden aria-label="Volver arriba">
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 15 12 9 18 15"></polyline></svg>
+  </button>
 </footer>
 """.lstrip()
 
@@ -279,23 +302,7 @@ def render_home(page: dict, settings: dict | None = None) -> str:
     return f"""<!doctype html>
 <html lang="es">
 <head>
-  <!-- Google Tag Manager -->
-  <script>(function(w,d,s,l,i){{w[l]=w[l]||[];w[l].push({{'gtm.start':
-  new Date().getTime(),event:'gtm.js'}});var f=d.getElementsByTagName(s)[0],
-  j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-  'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-  }})(window,document,'script','dataLayer','GTM-T68P3M9M');</script>
-  <!-- End Google Tag Manager -->
-
-  <!-- Google tag (gtag.js) -->
-  <script async src="https://www.googletagmanager.com/gtag/js?id=G-SNSXVJXFC6"></script>
-  <script>
-    window.dataLayer = window.dataLayer || [];
-    function gtag(){{dataLayer.push(arguments);}}
-    gtag('js', new Date());
-
-    gtag('config', 'G-SNSXVJXFC6');
-  </script>
+  <script src="/assets/js/consent.js?v={asset_version('assets/js/consent.js')}" defer></script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{e(c['seo']['title'])}</title>
@@ -307,7 +314,7 @@ def render_home(page: dict, settings: dict | None = None) -> str:
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/css/styles.css">
+  <link rel="stylesheet" href="/assets/css/styles.css?v={asset_version('assets/css/styles.css')}">
 <link rel="icon" href="/assets/favicon/favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon/favicon-32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon/favicon-16.png">
@@ -378,10 +385,6 @@ def render_home(page: dict, settings: dict | None = None) -> str:
   </script>
 </head>
 <body>
-  <!-- Google Tag Manager (noscript) -->
-  <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-T68P3M9M"
-  height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
-  <!-- End Google Tag Manager (noscript) -->
   <div id="site-header"></div>
 
   <main>
@@ -527,7 +530,7 @@ def render_home(page: dict, settings: dict | None = None) -> str:
           <div class="map-split">
             <div class="map-embed">
               <iframe
-                src="{e(panorama_embed)}"
+                data-src="{e(panorama_embed)}"
                 loading="lazy"
                 referrerpolicy="no-referrer-when-downgrade"
                 title="Panorámica de Ybarra Motor Taller Mecánico">
@@ -536,7 +539,7 @@ def render_home(page: dict, settings: dict | None = None) -> str:
 
             <div class="map-embed">
               <iframe
-                src="{e(map_embed)}"
+                data-src="{e(map_embed)}"
                 loading="lazy"
                 referrerpolicy="no-referrer-when-downgrade"
                 title="Mapa de Ybarra Motor Taller Mecánico">
@@ -599,7 +602,7 @@ def render_home(page: dict, settings: dict | None = None) -> str:
 
   <div id="site-footer"></div>
 
-  <script src="/assets/js/main.js"></script>
+  <script src="/assets/js/main.js?v={asset_version('assets/js/main.js')}"></script>
 </body>
 </html>
 """
@@ -644,30 +647,14 @@ def render_service(page: dict, settings: dict | None = None) -> str:
     return f"""<!doctype html>
 <html lang="es">
 <head>
-  <!-- Google Tag Manager -->
-  <script>(function(w,d,s,l,i){{w[l]=w[l]||[];w[l].push({{'gtm.start':
-  new Date().getTime(),event:'gtm.js'}});var f=d.getElementsByTagName(s)[0],
-  j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-  'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-  }})(window,document,'script','dataLayer','GTM-T68P3M9M');</script>
-  <!-- End Google Tag Manager -->
-
-  <!-- Google tag (gtag.js) -->
-  <script async src="https://www.googletagmanager.com/gtag/js?id=G-SNSXVJXFC6"></script>
-  <script>
-    window.dataLayer = window.dataLayer || [];
-    function gtag(){{dataLayer.push(arguments);}}
-    gtag('js', new Date());
-
-    gtag('config', 'G-SNSXVJXFC6');
-  </script>
+  <script src="/assets/js/consent.js?v={asset_version('assets/js/consent.js')}" defer></script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{e(c['seo']['title'])}</title>
   <meta name="description" content="{e(c['seo']['description'])}">
   <meta name="robots" content="index,follow">
   <link rel="canonical" href="{e(c['seo']['canonical_url'])}">
-  <link rel="stylesheet" href="/assets/css/styles.css">
+  <link rel="stylesheet" href="/assets/css/styles.css?v={asset_version('assets/css/styles.css')}">
 <link rel="icon" href="/assets/favicon/favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon/favicon-32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon/favicon-16.png">
@@ -706,10 +693,6 @@ def render_service(page: dict, settings: dict | None = None) -> str:
   </script>
 </head>
 <body>
-  <!-- Google Tag Manager (noscript) -->
-  <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-T68P3M9M"
-  height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
-  <!-- End Google Tag Manager (noscript) -->
   <div id="site-header"></div>
 
   <main>
@@ -826,7 +809,7 @@ def render_service(page: dict, settings: dict | None = None) -> str:
 
   <div id="site-footer"></div>
 
-  <script src="/assets/js/main.js"></script>
+  <script src="/assets/js/main.js?v={asset_version('assets/js/main.js')}"></script>
 </body>
 </html>
 """

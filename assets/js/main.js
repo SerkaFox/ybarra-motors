@@ -23,6 +23,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   initHeroScramble();
   initCurrentYear();
   initOpenStatus();
+  initScheduleSummary();
+  initScrollTop();
 });
 
 function initReveal() {
@@ -298,7 +300,7 @@ function getScheduleForDay(dayNumber) {
   const dayKeys = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
   const dayConfig = scheduleSource[dayKeys[dayNumber]];
 
-  if (!dayConfig || dayConfig.closed) {
+  if (!dayConfig || dayConfig.closed === true || dayConfig.closed === 'True') {
     return null;
   }
 
@@ -455,6 +457,73 @@ function initOpenStatus() {
       }));
     }
   }
+}
+
+function getWeeklyScheduleLines() {
+  const scheduleSource = window.YBARRA_CONTACT?.schedule || DEFAULT_WEEK_SCHEDULE;
+  const order = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+
+  const days = order.map((key) => {
+    const day = scheduleSource[key];
+    if (!day) return null;
+
+    const closed = day.closed === true || day.closed === 'True';
+    const hours = closed
+      ? 'Cerrado'
+      : (day.afternoon_open
+        ? `${day.morning_open}–${day.morning_close} y ${day.afternoon_open}–${day.afternoon_close}`
+        : `${day.morning_open}–${day.morning_close}`);
+
+    return { name: day.label, hours };
+  }).filter(Boolean);
+
+  const groups = [];
+  days.forEach((day) => {
+    const last = groups[groups.length - 1];
+    if (last && last.hours === day.hours) {
+      last.names.push(day.name);
+    } else {
+      groups.push({ names: [day.name], hours: day.hours });
+    }
+  });
+
+  return groups.map(({ names, hours }) => {
+    const range = names.length > 1 ? `${names[0]} - ${names[names.length - 1]}` : names[0];
+    return hours === 'Cerrado' ? `Cerrado: ${range}` : `${range}: ${hours}`;
+  });
+}
+
+function initScheduleSummary() {
+  const container = document.querySelector('.schedule-summary');
+  if (!container) return;
+
+  const lines = getWeeklyScheduleLines();
+  if (!lines.length) return;
+
+  container.querySelectorAll('p').forEach((p) => p.remove());
+  lines.forEach((line) => {
+    const p = document.createElement('p');
+    p.textContent = line;
+    container.appendChild(p);
+  });
+}
+
+function initScrollTop() {
+  const btn = document.getElementById('scroll-top');
+  if (!btn) return;
+
+  btn.hidden = false;
+
+  const applyVisibility = () => {
+    btn.classList.toggle('is-visible', window.scrollY > 400);
+  };
+
+  applyVisibility();
+  window.addEventListener('scroll', applyVisibility, { passive: true });
+
+  btn.addEventListener('click', () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
 }
 
 document.addEventListener("DOMContentLoaded", () => {
