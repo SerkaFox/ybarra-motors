@@ -4,6 +4,16 @@ Website for **Ybarra Motor**, an automotive repair workshop in Bilbao, Spain.
 
 The project is built as a fast static website with a small Python-based CMS for editing content and regenerating the public HTML pages.
 
+<!-- readme-screenshots -->
+## Screenshots
+
+<p align="center">
+  <img src="docs/screenshots/ybarra-desktop.jpg" alt="ybarra-motor.es" width="72%">
+  <img src="docs/screenshots/ybarra-mobile.jpg" alt="Mobile" width="24%">
+</p>
+<p align="center"><em>ybarra-motor.es · Mobile</em></p>
+<!-- readme-screenshots -->
+
 ## What The Site Does
 
 - Presents workshop services, contact details, opening hours, map embeds, and customer review sections.
